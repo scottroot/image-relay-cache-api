@@ -1,14 +1,14 @@
 {
   "name": "image-relay-cache-api",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.0.1",
+  "description": "Image relay api with caching and auto thumbnail generation for videos",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "build": "cd client && npm install && npm run build"
+    "build": "npm install && npm run build"
   },
   "keywords": [],
-  "author": "",
+  "author": "scott",
   "license": "ISC",
   "dependencies": {
     "express": "^4.18.2",
@@ -18,8 +18,9 @@
     "fluent-ffmpeg": "^2.1.2",
     "got": "^12.5.2",
     "image-thumbnail": "^1.0.15",
-    "node-cache": "^5.1.2",
-    "video-thumb": "^0.0.3",
-    "virtual-folder": "^1.0.0"
+    "node-cache": "^5.1.2"
+  },
+  "engines": {
+    "node": "^16.15.0"
   }
 }
