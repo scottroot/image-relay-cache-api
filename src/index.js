@@ -38,47 +38,43 @@ app.get('/:id', async(req,res) => {
     console.log(dataType);
     const mimeType = String(dataType.mime).split("/")[0];
 
-    if(mimeType === "video" || dataType.mime === "image/gif") {
-      console.log('Fetch data from video API');
-      var outStream = fs.createWriteStream('video.mp4');
-      await ffmpeg(url)
-        .setFfmpegPath(ffmpeg_static)
-        .format('mjpeg')
-        .frames(1)
-        .size('320x320')
-        .on('error', function(err) {
-          console.log('An error occurred: ' + err.message);
-        })
-        .on('end', function() {
-          console.log('Processing finished !');
-        })
-        .takeScreenshots({
-            count: 1,
-            timemarks: [ '0' ],
-            filename: "thumbnail.png"
-          }, 'tmp')
-        .pipe(outStream, { end: true });
-      var bitmap = await fs.readFileSync("tmp/thumbnail.png");
-      var img64 = new Buffer.from(bitmap, "binary").toString('base64');
-      const data = `data:image/png;base64,${img64}`;
-      appCache.set(`${id}`,data);
-      // console.log(`Video data = ${data}`)
-      return res.send(`${data}`);
-    }
-    else {
-      try {
+    try {
+      if(mimeType === "video" || dataType.mime === "image/gif") {
+        console.log('Fetch data from video API');
+        var outStream = fs.createWriteStream('video.mp4');
+        await ffmpeg(url)
+          .setFfmpegPath(ffmpeg_static)
+          .format('mjpeg')
+          .frames(1)
+          .size('320x320')
+          .on('error', function(err) {
+            console.log('An error occurred: ' + err.message);
+          })
+          .on('end', function() {
+            console.log('Processing finished !');
+          })
+          .takeScreenshots({
+              count: 1,
+              timemarks: [ '0' ],
+              filename: "thumbnail.png"
+            }, 'tmp')
+          .pipe(outStream, { end: true });
+        var bitmap = await fs.readFileSync("tmp/thumbnail.png");
+        var img64 = new Buffer.from(bitmap, "binary").toString('base64');
+        const data = JSON.stringify({image: `data:image/png;base64,${img64}`});
+        appCache.set(`${id}`,data);
+        // console.log(`Video data = ${data}`)
+        return res.send(`${data}`);
+      }
+      else {
         console.log('Fetch data from image API');
         const thumbnail = await imageThumbnail({ uri: url }, {width: 320, height: 320});
         const img64 = thumbnail.toString('base64');
-        const data = `data:image/png;base64,${img64}`;
+        const data = JSON.stringify({image: `data:image/png;base64,${img64}`});
         appCache.set(`${id}`,data);
-        // console.log(`Other data = ${data}`)
         return res.send(data);
       }
-      catch (err) {
-        console.log(err);
-      }
-    }
+    } catch (err) {console.log(err.message)}
   }
   console.log(`No data = "none"`)
   return res.send("none");
