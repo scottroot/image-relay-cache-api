@@ -1,4 +1,3 @@
-import { fileTypeFromBuffer } from 'file-type';
 import got from 'got';
 import fs from "fs";
 import { fileTypeFromStream } from 'file-type';
@@ -15,6 +14,14 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }));
 const port = 3000;
 
+app.get('/', async(req,res) => {
+  return res.send("Enter a /txId to get the base64 thumbnail...")
+})
+app.get('/favicon.ico', async(req,res) => {
+  return res.send("404")
+})
+
+
 
 app.get('/:id', async(req,res) => {
   const id = req.params.id;
@@ -29,16 +36,17 @@ app.get('/:id', async(req,res) => {
     console.log(`Url = ${url}`);
     const stream = got.stream(url);
     const dataType = await fileTypeFromStream(stream)
-    const mimeType = dataType.mime.split("/")[0];
+    console.log(dataType);
+    const mimeType = String(dataType.mime).split("/")[0];
 
-    if(mimeType === "video") {
+    if(mimeType === "video" || dataType.mime === "image/gif") {
       console.log('Fetch data from video API');
       var outStream = fs.createWriteStream('video.mp4');
       await ffmpeg(url)
         .setFfmpegPath(ffmpeg_static)
         .format('mjpeg')
         .frames(1)
-        .size('320x240')
+        .size('320x320')
         .on('error', function(err) {
           console.log('An error occurred: ' + err.message);
         })
@@ -55,20 +63,23 @@ app.get('/:id', async(req,res) => {
       var img64 = new Buffer.from(bitmap, "binary").toString('base64');
       const data = `data:image/png;base64,${img64}`;
       appCache.set(`${id}`,data);
+      console.log(`Video data = ${data}`)
       return res.send(`${data}`);
     }
     else {
       try {
         console.log('Fetch data from image API');
-        const data = await imageThumbnail({ uri: url });
+        const data = await imageThumbnail({ uri: url }, {width: 320, height: 320});
         appCache.set(`${id}`,data);
+        console.log(`Other data = ${data}`)
         return res.send(data);
       }
       catch (err) {
-        console.error(err);
+        console.log(err);
       }
     }
   }
+  console.log(`No data = "none"`)
   return res.send("none");
 });
 
