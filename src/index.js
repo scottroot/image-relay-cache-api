@@ -12,7 +12,6 @@ const appCache = new nodecache({ stdTTL : 3599});
 var app = express();
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }));
-const port = 3000;
 
 app.get('/', async(req,res) => {
   return res.send("Enter a /txId to get the base64 thumbnail...")
@@ -87,6 +86,6 @@ app.get('/:id', async(req,res) => {
 //   res.send(appCache.getStats());
 // })
 
-app.listen(port, () => {
-  console.log("Server running on port 3000");
+app.listen(process.env.PORT || 5000, () => {
+  console.log(`Server running on port ${process.env.PORT || 5000}`);
 });
