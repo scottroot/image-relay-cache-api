@@ -61,7 +61,7 @@ app.get('/:id', async(req,res) => {
           .pipe(outStream, { end: true });
         var bitmap = await fs.readFileSync("tmp/thumbnail.png");
         var img64 = new Buffer.from(bitmap, "binary").toString('base64');
-        const data = JSON.stringify({image: `data:image/png;base64,${img64}`});
+        const data = `data:image/png;base64,${img64}`;
         appCache.set(`${id}`,data);
         // console.log(`Video data = ${data}`)
         return res.send(`${data}`);
@@ -70,7 +70,7 @@ app.get('/:id', async(req,res) => {
         console.log('Fetch data from image API');
         const thumbnail = await imageThumbnail({ uri: url }, {width: 320, height: 320});
         const img64 = thumbnail.toString('base64');
-        const data = JSON.stringify({image: `data:image/png;base64,${img64}`});
+        const data = `data:image/png;base64,${img64}`;
         appCache.set(`${id}`,data);
         return res.send(data);
       }
