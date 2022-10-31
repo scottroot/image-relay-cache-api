@@ -1,3 +1,4 @@
 # Project exclude paths
 /node_modules/
-/tmp/
+/images/
+/src/index2.js
