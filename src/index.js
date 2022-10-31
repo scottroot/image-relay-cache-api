@@ -24,6 +24,8 @@ app.get('/favicon.ico', async(req,res) => {
 
 app.get('/:id', async(req,res) => {
   const id = req.params.id;
+  if(!id || id.length !== 43) return res.send("incorrect id format");
+
 
   if(appCache.has(`${id}`)){
     console.log('Get data from Node Cache');
