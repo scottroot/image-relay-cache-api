@@ -62,15 +62,17 @@ app.get('/:id', async(req,res) => {
       var img64 = new Buffer.from(bitmap, "binary").toString('base64');
       const data = `data:image/png;base64,${img64}`;
       appCache.set(`${id}`,data);
-      console.log(`Video data = ${data}`)
+      // console.log(`Video data = ${data}`)
       return res.send(`${data}`);
     }
     else {
       try {
         console.log('Fetch data from image API');
-        const data = await imageThumbnail({ uri: url }, {width: 320, height: 320});
+        const thumbnail = await imageThumbnail({ uri: url }, {width: 320, height: 320});
+        const img64 = thumbnail.toString('base64');
+        const data = `data:image/png;base64,${img64}`;
         appCache.set(`${id}`,data);
-        console.log(`Other data = ${data}`)
+        // console.log(`Other data = ${data}`)
         return res.send(data);
       }
       catch (err) {
