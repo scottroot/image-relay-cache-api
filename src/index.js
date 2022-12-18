@@ -66,6 +66,9 @@ app.get('/:id', async(req,res) => {
     if(id.length === 43) {
       url = `https://arweave.net/${id}`;
     }
+    if(!url.startsWith("http")) {
+      url = `https://${url}`;
+    }
 
     const contentType = await getContentType(url);
     const mimeType = contentType.split("/")?.slice(0,1)[0];
