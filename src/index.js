@@ -21,6 +21,10 @@ const getPageScreenshot = (url) => puppeteer
         width: 500,
         height: 600,
       },
+      args : [
+        '--no-sandbox',
+        '--disable-setuid-sandbox'
+      ]
     })
     .then(async (browser) => {
       const page = await browser.newPage();
