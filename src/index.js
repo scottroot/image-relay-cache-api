@@ -8,6 +8,8 @@ import ffmpeg from "fluent-ffmpeg";
 import ffmpeg_static from "ffmpeg-static";
 import axios from "axios";
 import puppeteer from "puppeteer";
+import queue from "express-queue";
+
 
 const getContentType = (url) => (
   axios.get(url)
@@ -37,8 +39,7 @@ const getPageScreenshot = (url) => puppeteer
 
 const appCache = new nodecache({ stdTTL : 3599});
 
-var queue = require('express-queue');
-var app = express(queue({ activeLimit: 2, queuedLimit: 50 }));
+var app = express(queue({ activeLimit: 2, queuedLimit: -1 }));
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }));
 
@@ -57,7 +58,6 @@ app.get('/page/:id', async(req,res) => {
   }
   return res.send(await getPageScreenshot(url));
 })
-
 
 app.get('/:id', async(req,res) => {
   const id = req.params.id;
