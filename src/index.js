@@ -36,7 +36,9 @@ const getPageScreenshot = (url) => puppeteer
 ;
 
 const appCache = new nodecache({ stdTTL : 3599});
-var app = express();
+
+var queue = require('express-queue');
+var app = express(queue({ activeLimit: 2, queuedLimit: 50 }));
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }));
 
