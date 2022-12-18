@@ -19,7 +19,7 @@
     "got": "^12.5.2",
     "image-thumbnail": "^1.0.15",
     "node-cache": "^5.1.2",
-    "puppeteer": "^19.4.1"
+    "puppeteer": "^18.2.1"
   },
   "engines": {
     "node": "^16.15.0"
