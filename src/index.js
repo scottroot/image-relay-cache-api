@@ -80,6 +80,7 @@ app.get('/:id', async(req,res) => {
     const mimeType = contentType.split("/")?.slice(0,1)[0];
     try {
       if(mimeType === "video" || contentType === "image/gif") {
+        let rname = (Math.random() + 1).toString(36).substring(7);
         var outStream = fs.createWriteStream('video.mp4');
         await ffmpeg(url)
           .setFfmpegPath(ffmpeg_static)
@@ -95,31 +96,32 @@ app.get('/:id', async(req,res) => {
           .takeScreenshots({
               count: 1,
               timemarks: [ '5' ],
-              filename: "thumbnail.png"
+              filename: `thumbnail${rname}.png`
             }, 'tmp')
           .pipe(outStream, { end: true });
         var bitmap = await fs.readFileSync("tmp/thumbnail.png");
         var img64 = new Buffer.from(bitmap, "binary").toString('base64');
         const data = `data:image/png;base64,${img64}`;
         appCache.set(`${id}`,data);
-        return res.send(`${data}`);
+        return res.json({image: data});
       }
       if(contentType === "text/html") {
         const screenshot64 = await getPageScreenshot(url);
         console.log(screenshot64);
         const data = `data:image/png;base64,${screenshot64}`;
-        return res.send(`${data}`);
+        appCache.set(`${id}`,data);
+        return res.json({image: data});
       }
       else {
         const thumbnail = await imageThumbnail({ uri: url }, {width: 320, height: 320});
         const img64 = thumbnail.toString('base64');
         const data = `data:image/png;base64,${img64}`;
         appCache.set(`${id}`,data);
-        return res.send(data);
+        return res.json(data);
       }
     } catch (err) {console.log(err.message)}
   }
-  return res.send("none");
+  return res.json({image: null});
 });
 
 // app.get('/stats',(req,res)=>{
