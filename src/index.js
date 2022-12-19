@@ -115,7 +115,7 @@ app.get('/:id', async(req,res) => {
           const img64 = thumbnail.toString('base64');
           const data = `data:image/png;base64,${img64}`;
           appCache.set(`${id}`, data);
-          return res.json(data);
+          return res.json({image: data});
         }
       } catch (err) {
         console.log(err.message)
