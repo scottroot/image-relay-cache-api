@@ -49,13 +49,31 @@ app.get('/favicon.ico', async(req,res) => {
   return res.send("404")
 })
 
-app.get('/page/:id', async(req,res) => {
-  const id = req.params.id;
-  let url = id;
-  if (id.length === 43) {
-    url = `https://arweave.net/${id}`;
+
+app.get('/image/:id', async(req,res) => {
+  try {
+    const id = req?.params?.id;
+    if (appCache.has(`${id}`)) {
+      console.log('Get data from Node Cache');
+      const data = appCache.get(`${id}`);
+      return res.send(JSON.stringify({image: data}));
+    } else {
+      let url = id;
+      if (id.length === 43) {
+        url = `https://arweave.net/${id}`;
+      }
+      if (!url.startsWith("http")) {
+        url = `https://${url}`;
+      }
+      const thumbnail = await imageThumbnail({uri: url}, {width: 320, height: 320});
+      const img64 = thumbnail.toString('base64');
+      const data = `data:image/png;base64,${img64}`;
+      appCache.set(`${id}`, data);
+      return res.send(JSON.stringify({image: data}));
+    }  
+  } catch (err) {
+    return res.send(JSON.stringify({image: null, error: err}))
   }
-  return res.send(await getPageScreenshot(url));
 })
 
 app.get('/:id', async(req,res) => {
