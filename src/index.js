@@ -76,6 +76,31 @@ app.get('/image/:id', async(req,res) => {
   }
 })
 
+app.get('/image2/:id', async(req,res) => {
+    let id = req?.params?.id;
+    if(!id) id = req?.query?.id;
+    if(!id) return res.send("error, no id")
+    if (appCache.has(`${id}`)) {
+      console.log('Get data from Node Cache');
+      const data = appCache.get(`${id}`);
+      return res.send(data);
+    } else {
+      let url = id;
+      if (id.length === 43) {
+        url = `https://arweave.net/${id}`;
+      }
+      if (!url.startsWith("http")) {
+        url = `https://${url}`;
+      }
+      console.log(`url = ${url}`);
+      const thumbnail = await imageThumbnail({uri: url}, {width: 320, height: 320});
+      const img64 = thumbnail.toString('base64');
+      const data = `data:image/png;base64,${img64}`;
+      appCache.set(`${id}`, data);
+      return res.send(JSON.stringify({image: data}));
+    }  
+})
+
 app.get('/:id', async(req,res) => {
   try {
     const id = req.params.id;
