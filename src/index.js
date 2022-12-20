@@ -8,7 +8,18 @@ import ffmpeg_static from "ffmpeg-static";
 import axios from "axios";
 import puppeteer from "puppeteer";
 import queue from "express-queue";
+import cors from "cors";
 
+
+// options:
+// percentage [0-100] - image thumbnail percentage. Default = 10
+// width [number] - image thumbnail width.
+// height [number] - image thumbnail height.
+// responseType ['buffer' || 'base64'] - response output type. Default = 'buffer'
+// jpegOptions [0-100] - Example: { force:true, quality:100 }
+// fit [string] - method by which the image should fit the width/height. Default = contain (details)
+// failOnError [boolean] - Set to false to avoid read problems for images from some phones (i.e Samsung) in the sharp lib. Default = true (details)
+// withMetaData [boolean] - Keep metadata in the thumbnail (will increase file size)
 
 const getContentType = (url) => (
   axios.get(url)
@@ -48,58 +59,69 @@ app.get('/', async(req,res) => {
 app.get('/favicon.ico', async(req,res) => {
   return res.send("404")
 })
+  
 
 
-app.get('/image/:id', async(req,res) => {
-  try {
-    const id = req?.params?.id;
-    if (appCache.has(`${id}`)) {
+app.get('/page', cors(), async(req, res) => {
+  let url = req.query?.url;
+  if (appCache.has(`${url}`)) {
       console.log('Get data from Node Cache');
-      const data = appCache.get(`${id}`);
-      return res.send(JSON.stringify({image: data}));
-    } else {
-      let url = id;
-      if (id.length === 43) {
-        url = `https://arweave.net/${id}`;
-      }
-      if (!url.startsWith("http")) {
-        url = `https://${url}`;
-      }
-      const thumbnail = await imageThumbnail({uri: url}, {width: 320, height: 320});
-      const img64 = thumbnail.toString('base64');
-      const data = `data:image/png;base64,${img64}`;
-      appCache.set(`${id}`, data);
-      return res.send(JSON.stringify({image: data}));
-    }  
-  } catch (err) {
-    return res.send(JSON.stringify({image: null, error: err}))
+      const data = appCache.get(`${url}`);
+      return res.json(data);
+  } else {
+    try { 
+      
+      const screenshot64 = await getPageScreenshot(url);
+      // console.log(screenshot64);
+      const data = `data:image/png;base64,${screenshot64}`;
+      appCache.set(`${url}`, data);
+      return res.json(data);
+    } catch (err) {
+      const data = err;
+      res.json(data)
+    }
   }
 })
 
-app.get('/image2/:id', async(req,res) => {
-    let id = req?.params?.id;
-    if(!id) id = req?.query?.id;
-    if(!id) return res.send("error, no id")
-    if (appCache.has(`${id}`)) {
-      console.log('Get data from Node Cache');
-      const data = appCache.get(`${id}`);
-      return res.send(data);
-    } else {
-      let url = id;
-      if (id.length === 43) {
-        url = `https://arweave.net/${id}`;
-      }
-      if (!url.startsWith("http")) {
-        url = `https://${url}`;
-      }
-      console.log(`url = ${url}`);
-      const thumbnail = await imageThumbnail({uri: url}, {width: 320, height: 320});
-      const img64 = thumbnail.toString('base64');
-      const data = `data:image/png;base64,${img64}`;
-      appCache.set(`${id}`, data);
-      return res.send(JSON.stringify({image: data}));
-    }  
-})
+
+// app.get('/image/:id', async(req,res) => {
+app.get('/image', cors(), async(req,res) => {
+  try { 
+  // const id = req.params.id;
+  // console.log(`api tx param = ${id}`);
+      let url = req.query?.url;
+      const width = req.query?.width || 320;
+      const height = req.query?.height || 320;
+      if (appCache.has(`${url}`)) {
+        console.log('Get data from Node Cache');
+        const data = appCache.get(`${url}`);
+        return res.json(data);
+      } else {
+        if (url.length === 43) {
+          url = `https://arweave.net/${url}`; 
+        } 
+        if (!url.startsWith("http")) {
+          url = `https://${url}`;
+        }
+        let options;
+        if(width && height) {
+          options = {responseType: 'base64', fit: 'cover', withMetaData: true, width: Number(width), height: Number(height)}
+        }
+        else {
+          options = {responseType: 'base64', fit: 'cover', withMetaData: true, percentage: 50}
+        }
+         
+        const thumbnail = await imageThumbnail({uri: url}, options);
+        // const img64 = thumbnail.toString('base64');
+        const data = `data:image/png;base64,${thumbnail}`;
+        appCache.set(`${url}`, data);
+        return res.json(data);
+      }  
+  } catch (err) {
+    return res.json({image: null, error: err})
+  }
+})  
+
 
 app.get('/:id', async(req,res) => {
   try {
