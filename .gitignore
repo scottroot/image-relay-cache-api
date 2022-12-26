@@ -2,3 +2,9 @@
 /node_modules/
 /images/
 /src/index2.js
+**.mp4
+**/**.mp4
+**/**/**.mp4
+**.png
+**/**.png
+**/**/**.png

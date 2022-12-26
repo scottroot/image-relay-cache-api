@@ -160,7 +160,8 @@ app.get('/:id', async(req,res) => {
             .takeScreenshots({
               count: 1,
               timemarks: ['5'],
-              filename: `thumbnail${rname}.png`
+              filename: `thumbnail${rname}.png`,
+              qscale: 7
             }, 'tmp')
             .pipe(outStream, {end: true});
           var bitmap = await fs.readFileSync("tmp/thumbnail.png");
@@ -189,6 +190,72 @@ app.get('/:id', async(req,res) => {
     return res.json({image: null});
   } catch (err) {
     return res.json({image: null, error: err})
+  }
+})
+
+
+app.get('/video/:id', async(req,res) => {
+  const curr_working_dir = process.cwd();
+  const id = req.params.id;
+  console.log(id);
+  if (appCache.has(`${id}`)) {
+    console.log('Get data from Node Cache');
+    const data = await appCache.get(`${id}`);
+    return res.json({image: data});
+  } 
+  else {
+    try {
+      let url = id;
+      if (id.length === 43) url = `https://arweave.net/${id}`
+      if (!url.startsWith("http")) url = `https://${url}`
+
+      const contentType = await getContentType(url);
+      const mimeType = contentType.split("/")?.slice(0, 1)[0];
+      console.log(mimeType);
+
+      // let rname = (Math.random() + 1).toString(36).substring(7);
+      try {
+        // if (mimeType === "video" || contentType === "image/gif") {
+        
+        var outStream = await fs.createWriteStream('video.mp4');
+        await ffmpeg(url)
+          .setFfmpegPath(ffmpeg_static)
+          .format('mjpeg')
+          .frames(1)
+          .size('320x320')
+          .on('error', function (err) {
+            console.log('An error occurred: ' + err.message);
+          })
+          .on('end', function () {
+            console.log('Processing finished !');
+          })
+          .takeScreenshots({
+            count: 1,
+            timemarks: ['1'],
+            filename: `${id}.png`
+          }, 'tmp')
+          .pipe(outStream, {end: true});
+      }
+      catch (err) {
+        console.log(err.message)
+      }
+
+      try {
+        var bitmap = await fs.readFileSync(`tmp/${id}.png`);
+        var img64 = await new Buffer.from(bitmap, "binary").toString('base64');
+        const data = `data:image/png;base64,${img64}`;
+        appCache.set(`${id}`, data);
+        // return res.json({image: data});
+        return res.send(data);
+        // }
+      }
+      catch (err) {
+        console.log(err)
+      }
+      return res.json({image: null});
+    } catch (err) {
+      return res.json({image: null, error: err})
+    }
   }
 })
 
