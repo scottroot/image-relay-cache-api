@@ -196,6 +196,7 @@ app.get('/:id', async(req,res) => {
 
 app.get('/video/:id', async(req,res) => {
   const curr_working_dir = process.cwd();
+  console.log(curr_working_dir);
   const id = req.params.id;
   console.log(id);
   if (appCache.has(`${id}`)) {
@@ -242,6 +243,19 @@ app.get('/video/:id', async(req,res) => {
 
       try {
         var bitmap = await fs.readFileSync(`${id}.png`);
+        var img64 = await new Buffer.from(bitmap, "binary").toString('base64');
+        const data = `data:image/png;base64,${img64}`;
+        appCache.set(`${id}`, data);
+        // return res.json({image: data});
+        return res.send(data);
+        // }
+      }
+      catch (err) {
+        console.log(err)
+      }
+      
+      try {
+        var bitmap = await fs.readFileSync(`${curr_working_dir}/${id}.png`);
         var img64 = await new Buffer.from(bitmap, "binary").toString('base64');
         const data = `data:image/png;base64,${img64}`;
         appCache.set(`${id}`, data);
