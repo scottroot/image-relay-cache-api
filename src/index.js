@@ -241,7 +241,7 @@ app.get('/video/:id', async(req,res) => {
       }
 
       try {
-        var bitmap = await fs.readFileSync(`tmp/${id}.png`);
+        var bitmap = await fs.readFileSync(`${id}.png`);
         var img64 = await new Buffer.from(bitmap, "binary").toString('base64');
         const data = `data:image/png;base64,${img64}`;
         appCache.set(`${id}`, data);
