@@ -168,9 +168,9 @@ app.get('/:id', async(req,res) => {
               timemarks: ['5'],
               filename: thumb_name,
               qscale: 7
-            }, `tmp`)
+            }, `${curr_working_dir}/tmp`)
             .pipe(outStream, {end: true});
-          var bitmap = await fs.readFileSync(`tmp/${thumb_name}`);
+          var bitmap = await fs.readFileSync(`${curr_working_dir}/tmp/${thumb_name}`);
           var img64 = new Buffer.from(bitmap, "binary").toString('base64');
           const data = `data:image/png;base64,${img64}`;
           appCache.set(`${id}`, data);
