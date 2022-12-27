@@ -170,7 +170,7 @@ app.get('/:id', async(req,res) => {
               qscale: 7
             }, `tmp`)
             .pipe(outStream, {end: true});
-          var bitmap = await fs.readFileSync(`${curr_working_dir}/tmp/${thumb_name}.png`);
+          var bitmap = await fs.readFileSync(`tmp/${thumb_name}`);
           var img64 = new Buffer.from(bitmap, "binary").toString('base64');
           const data = `data:image/png;base64,${img64}`;
           appCache.set(`${id}`, data);
