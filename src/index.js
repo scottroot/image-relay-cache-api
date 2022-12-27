@@ -9,6 +9,7 @@ import axios from "axios";
 import puppeteer from "puppeteer";
 import queue from "express-queue";
 import cors from "cors";
+import got from "got"
 
 
 // options:
@@ -142,11 +143,16 @@ app.get('/:id', async(req,res) => {
 
       const contentType = await getContentType(url);
       const mimeType = contentType.split("/")?.slice(0, 1)[0];
+      console.log(`mime type = ${mimeType}`);
       try {
         if (mimeType === "video" || contentType === "image/gif") {
-          let rname = (Math.random() + 1).toString(36).substring(7);
+          const curr_working_dir = process.cwd();
+          const rname = (Math.random() + 1).toString(36).substring(7);
+          const thumb_name = `thumbnail-${id.replace("/","").replace("=","").slice(0,4)}`
+          console.log(`thumbnail file name = ${thumb_name}`);
           var outStream = fs.createWriteStream('video.mp4');
-          await ffmpeg(url)
+          var mediaStream = await got.stream(url);
+          await ffmpeg(mediaStream)
             .setFfmpegPath(ffmpeg_static)
             .format('mjpeg')
             .frames(1)
@@ -160,11 +166,11 @@ app.get('/:id', async(req,res) => {
             .takeScreenshots({
               count: 1,
               timemarks: ['5'],
-              filename: `thumbnail${rname}.png`,
+              filename: thumb_name,
               qscale: 7
-            }, 'tmp')
+            }, `tmp`)
             .pipe(outStream, {end: true});
-          var bitmap = await fs.readFileSync("tmp/thumbnail.png");
+          var bitmap = await fs.readFileSync(`${curr_working_dir}/tmp/${thumb_name}.png`);
           var img64 = new Buffer.from(bitmap, "binary").toString('base64');
           const data = `data:image/png;base64,${img64}`;
           appCache.set(`${id}`, data);
@@ -196,80 +202,88 @@ app.get('/:id', async(req,res) => {
 
 app.get('/video/:id', async(req,res) => {
   const curr_working_dir = process.cwd();
-  console.log(curr_working_dir);
+  // console.log(curr_working_dir);
   const id = req.params.id;
-  console.log(id);
+  // console.log(id);
+
   if (appCache.has(`${id}`)) {
     console.log('Get data from Node Cache');
     const data = await appCache.get(`${id}`);
     return res.json({image: data});
   } 
   else {
-    try {
-      let url = id;
-      if (id.length === 43) url = `https://arweave.net/${id}`
-      if (!url.startsWith("http")) url = `https://${url}`
+    // try { 
+    let url = id;
+    if (id.length === 43) url = `https://arweave.net/${id}.mp4`
+    if (!url.startsWith("http")) url = `https://${url}`
+    console.log(`url = ${url}`);
+    // const contentType = await getContentType(url);
+    // const mimeType = contentType.split("/")?.slice(0, 1)[0];
+    // console.log(`1.  mimeType = ${mimeType}`);
 
-      const contentType = await getContentType(url);
-      const mimeType = contentType.split("/")?.slice(0, 1)[0];
-      console.log(mimeType);
+    let rname = (Math.random() + 1).toString(36).substring(7);
+    // let file_name = String(id).replace("/", "").replace("\\", "").replace("=", "").replace("_", "").replace("-", "")
+    // console.log(`2.  file name = ${file_name}`)
+    // try {
+      // if (mimeType === "video" || contentType === "image/gif") {
+    var outStream = await fs.createWriteStream('video.mp4');
+    await ffmpeg(url)
+      .setFfmpegPath(ffmpeg_static)
+      .format('mjpeg')
+      .frames(1)
+      .size('320x320')
+      // .on('start', function(commandLine) {
+      //   console.log('COMMANDLINE =  ' + commandLine);
+      // })
+      .on('error', function (err) {
+        console.log('An error occurred: ' + err);
+        console.log(`url = ${url}`)
+      })
+      .on('end', function () {
+        console.log('Processing finished !');
+      })
+      .takeScreenshots({
+        count: 5,
+        timemarks: ['0'],
+        filename: `thumbnail-${rname}.png`,
+        // qscale: 7,
+      }, 'tmp')
+      // .pipe(outStream, {ned: true});
+    // } catch (err) {
+    //   console.log(`await ffmpeg error = ${err}`)
+    //   return res.send("none")
+    // }
+    return res.send()
+    // try {
+    //   var bitmap = await fs.readFileSync(`${curr_working_dir}/tmp/${file_name}.png`);
+    // } catch (err) {
+    //   console.log(`var bitmap failed with err = ${err.message}`)
+    // }
+    
+    // var img64 = await new Buffer.from(bitmap, "binary").toString('base64');
+    // const data = `data:image/png;base64,${img64}`;
+    // console.log(data);
+    // appCache.set(`${id}`, data);
+    // // return res.json({image: data});
+    // return res.send(data);
 
-      // let rname = (Math.random() + 1).toString(36).substring(7);
-      try {
-        // if (mimeType === "video" || contentType === "image/gif") {
-        
-        var outStream = await fs.createWriteStream('video.mp4');
-        await ffmpeg(url)
-          .setFfmpegPath(ffmpeg_static)
-          .format('mjpeg')
-          .frames(1)
-          .size('320x320')
-          .on('error', function (err) {
-            console.log('An error occurred: ' + err.message);
-          })
-          .on('end', function () {
-            console.log('Processing finished !');
-          })
-          .takeScreenshots({
-            count: 1,
-            timemarks: ['1'],
-            filename: `${id}.png`
-          }, 'tmp')
-          .pipe(outStream, {end: true});
-      }
-      catch (err) {
-        console.log(err.message)
-      }
-
-      try {
-        var bitmap = await fs.readFileSync(`${id}.png`);
-        var img64 = await new Buffer.from(bitmap, "binary").toString('base64');
-        const data = `data:image/png;base64,${img64}`;
-        appCache.set(`${id}`, data);
-        // return res.json({image: data});
-        return res.send(data);
-        // }
-      }
-      catch (err) {
-        console.log(err)
-      }
-      
-      try {
-        var bitmap = await fs.readFileSync(`${curr_working_dir}/${id}.png`);
-        var img64 = await new Buffer.from(bitmap, "binary").toString('base64');
-        const data = `data:image/png;base64,${img64}`;
-        appCache.set(`${id}`, data);
-        // return res.json({image: data});
-        return res.send(data);
-        // }
-      }
-      catch (err) {
-        console.log(err)
-      }
-      return res.json({image: null});
-    } catch (err) {
-      return res.json({image: null, error: err})
-    }
+      // try {
+      //   console.log(fs.readdirSync('./tmp'));
+      //   var bitmap = await fs.readFileSync(`${file_name}.png`);
+      //   var img64 = await new Buffer.from(bitmap, "binary").toString('base64');
+      //   const data = `data:image/png;base64,${img64}`;
+      //   appCache.set(`${id}`, data);
+      //   // return res.json({image: data});
+      //   return res.send(data);
+      //   // }
+      // }
+      // catch (err) {
+      //   console.log(err)
+      // }
+      // return res.json({image: null});
+    // } catch (err) {
+    //   return res.json({image: null, error: err})
+    // }
   }
 })
 
