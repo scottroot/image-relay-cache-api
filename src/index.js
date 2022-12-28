@@ -524,7 +524,7 @@ app.get('/video', async(req,res) => {
   let url = idToUrl(req.query?.url);
   url = url.replace("https", "http");
   console.log(url);
-  if (false && appCache.has(url)) {
+  if (appCache.has(url)) {
     console.log('Get data from Node Cache');
     const data = await appCache.get(url);
     return res.json({image: data});
@@ -546,15 +546,10 @@ app.get('/video', async(req,res) => {
       const output = await grabThumb(url, filename);
       const fileExists = await waitForFile(filename);
       console.log(output);
-      // if(!output) return;
-      // await fs.readFile(String(filename), function(err, data) {
-      //   if (err) throw err // Fail if the file can't be read.
-        // res.writeHead(200, {'Content-Type': 'image/gif'})
-        // res.end(data) // Send the file data to the browser.
-        // res.send(`data:image/gif;base64,${data.toString('base64')}`)
-      // })
       const bitmap = await FS.readFile(filename, { encoding: 'base64' });
-      return res.send(`data:image/gif;base64,${bitmap}`);
+      const result = `data:image/gif;base64,${bitmap}`;
+      appCache.set(url, result);
+      return res.send(result);
 
     }
     catch (e) {
