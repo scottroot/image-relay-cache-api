@@ -19,12 +19,14 @@
     "file-type": "^18.0.0",
     "fluent-ffmpeg": "^2.1.2",
     "got": "^12.5.2",
+    "grabzit": "^3.5.2",
     "image-size": "^1.0.2",
     "image-thumbnail": "^1.0.15",
     "node-cache": "^5.1.2",
     "nodemon": "^2.0.20",
     "puppeteer": "^18.2.1",
-    "sharp": "^0.31.3"
+    "sharp": "^0.31.3",
+    "video-gif-thumbnail-generator": "^1.0.5"
   },
   "engines": {
     "node": "^16.15.0"

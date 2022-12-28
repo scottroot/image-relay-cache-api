@@ -1,5 +1,6 @@
 import fs from "fs";
 import os from "os";
+import http from "http";
 import path from "path";
 // import { fileTypeFromStream } from 'file-type';
 import imageThumbnail from 'image-thumbnail';
@@ -14,6 +15,25 @@ import cors from "cors";
 import got from "got"
 import sharp from "sharp";
 import sizeOf from "image-size";
+import grabzit from "grabzit";
+
+
+async function download(url, path) {
+  const writer = fs.createWriteStream(path)
+  const response = await axios({
+    url,
+    method: 'GET',
+    responseType: 'stream'
+  })
+  response.data.pipe(writer)
+
+  return new Promise((resolve, reject) => {
+    writer.on('finish', resolve)
+    writer.on('error', reject)
+  })
+
+};
+
 
 // options:
 // percentage [0-100] - image thumbnail percentage. Default = 10
@@ -24,6 +44,37 @@ import sizeOf from "image-size";
 // fit [string] - method by which the image should fit the width/height. Default = contain (details)
 // failOnError [boolean] - Set to false to avoid read problems for images from some phones (i.e Samsung) in the sharp lib. Default = true (details)
 // withMetaData [boolean] - Keep metadata in the thumbnail (will increase file size)
+
+const waitForFile = async (filePath, timeout) => {
+  timeout = timeout < 1000 ? 3000 : timeout
+  try {
+    var nom = 0
+      return new Promise(resolve => {
+        var inter = setInterval(() => {
+          nom = nom + 100
+          if (nom >= timeout) {
+            clearInterval(inter)
+            //maybe exists, but my time is up!
+            resolve(false)
+          }
+
+          if (fs.existsSync(filePath) && fs.lstatSync(filePath).isFile()) {
+            clearInterval(inter)
+            //clear timer, even though there's still plenty of time left
+            resolve(true)
+          }
+        }, 100)
+      })
+  } catch (error) {
+    return false
+  }
+}
+
+
+const videoThumbnail = (url, path) => download(url, path)
+  // converter.convertToThumbnail(url)
+
+
 
 let tmpDir;
 const appPrefix = 'ar-minimizer-cache';
@@ -74,8 +125,9 @@ const imgFromImageUrl = async(url, w, h, q) => {
 }
 
 const imgFromImagePath = async(source, w, h, q) => {
+  console.log(`imgFromImagePath source = ${source}`)
   try {
-    const imageBuffer = fs.readFileSync(source);
+    const imageBuffer = fs.readFile(source);
     const width = w || 50;
     const height = h || 50;
     const quality = q || 25;
@@ -101,51 +153,114 @@ const imgFromImagePath = async(source, w, h, q) => {
 }
 
 
+
+
+const grabThumb = async (url) => {
+  var client = new grabzit("NjBlN2Q5MzI2YTUwNDY1ZjgwYTdkYzc1YTk4Nzg1ZWQ=", "Pz8/P2d3P2c/Pz9TBj8/SAENJD8/Pz8gPz9KeE5zP3I=");
+  var options = {"start":1, "duration":1, "framesPerSecond":1};
+  client.url_to_animation(url, options);
+  //Then call the save or save_to method
+  client.save_to("result.gif", function (error, id){
+      //this callback is called once the capture is downloaded
+      if (error != null){
+          throw error;
+      }
+  });
+}
+
+
+
+
+const getFfmpeg = async (url, tmpDir, outStream) => {
+  // try {
+  console.log(url)
+    const response = await ffmpeg(url)
+    await response
+      .format('mjpeg') // -f mjpeg
+      .frames(1) // -vframes 1
+      .size('320x320') // -s 320x240 : w = 320, h = 240
+      .on('error', function(err) { console.log('An error occurred: ' + err.message); })
+      .on('end', function() { console.log('Processing finished !'); })
+    const action = await response.screenshots({
+      count: 3,
+      timemarks: ['0'],
+      filename: "thumbnail",
+      folder: "./",
+      fastSeek: true
+    })
+    await action.pipe(outStream, { end: true })
+    const fileExists = await waitForFile(`${tmpDir}/thumbnail.png`)
+    if(fileExists) { return(true) }
+    else { return (false)}
+  // }
+  // catch (e) {
+  //   console.log(e)
+  //   return (false)
+  // }
+}
+
 const imgFromVideoUrl = async(url, w, h, q) => {
   try {
-    // let tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), appPrefix));
-    // let cwd = process.cwd();
-    // console.log(String(tmpDir));
-    var outStream = await fs.createWriteStream('video.mp4');
-    // let stream = await axios.get(url, { responseType: 'stream' });
-    await ffmpeg({source: url.replace("https", "http")}) // got.stream(url))
-      .setFfmpegPath(ffmpeg_static)
-      .format('mjpeg')
-      .frames(1)
-      .size('320x320')
-      .on('start', function(commandLine) {
-        console.log('COMMANDLINE =  ' + commandLine);
-      })
-      .on('error', function (err) {
-        console.log('An error occurred: ' + err);
-      })
-      .on('end', function () {
-        console.log('Processing finished !');
-      })
-      .takeScreenshots({
-        count: 2,
-        timemarks: ['1'],
-        filename: `thumbnail`,
-        // qscale: 7,
-      }, 'tmp') //path.join(cwd, 'tmp'))//String(tmpDir))
-      .pipe(outStream, {end: true});
-    return await imgFromImagePath(path.join('tmp', "thumbnail.png"), w, h, q); //(cwd, 'tmp', "thumbnail.png"));//path.join(tmpDir, "thumbnail"));
+    let outStream = await fs.createWriteStream("video.mp4");
+    const tmpDir = fs.mkdtempSync(appPrefix);
+    console.log(tmpDir)
+    const http_url = url.replace("https", "http");
+    const res = await getFfmpeg(http_url, tmpDir, outStream);
+    // const fileExists = await waitForFile(`${tmpDir}/thumbnail.png`, 3000)
+    if(res) return (`${tmpDir}/thumbnail.png`)
+    else return ("no file")
+      // const ffmpeg1 = await ffmpeg(http_url); // got.stream(url))
+      // const ffmpeg2 = await ffmpeg1.setFfmpegPath('/usr/bin/ffmpeg') // ffmpeg_static)
+      //   .format('mjpeg')
+      //   .frames(1)
+      //   .size('320x320')
+      //   // .on('start', function (commandLine) {
+      //   //   console.log('COMMANDLINE =  ' + commandLine);
+      //   // })
+      // const ffmpeg3 = await ffmpeg2
+      //   .on('error', function (err) {
+      //     console.log('An error occurred: ' + err);
+      //   })
+      //   .on('end', function () {
+      //     console.log('Processing finished !');
+      //   })
+      // const ffmpeg4 = await ffmpeg3
+      //   .takeScreenshots({
+      //     count: 2,
+      //     timemarks: ['1'],
+      //     filename: `thumbnail.png`,
+      //   }, `${tmpDir}/`) // String(path.resolve(path.join(cwd, tmpDirName)))) //path.join(cwd, 'tmp'))//String(tmpDir))
+      // ffmpeg4.pipe(outStream, {end: true});
+      // return new Promise((resolve, reject) => {
+      //   outStream.on('finish', resolve)
+      //   outStream.on('error', reject)
+      // })
+    //   return null
+    // }
+    // await startFfmpeg()
+    // return `${tmpDir}/thumbnail.png`
+    // const start_ffmpeg = await startFfmpeg()
+    // const data = await imgFromImagePath(`${tmpDir}/thumbnail.png`, w, h, q); //(cwd, 'tmp', "thumbnail.png"));//path.join(tmpDir, "thumbnail"));
+    // return data
+    // return "none"
   }
   catch (e) {  // handle error
     console.log(e)
     return null
   }
-  // finally {
-  //   try {
-  //     if (tmpDir) {
-  //       fs.rmSync(tmpDir, { recursive: true });
-  //     }
-  //   }
-  //   catch (e) {
-  //     console.error(`An error has occurred while removing the temp folder at ${tmpDir}. Please remove it manually. Error: ${e}`);
-  //   }
-  // }
+  finally {
+    try {
+      // if (tmpDir) {
+      //   fs.rmSync(tmpDir, { recursive: true });
+      // }
+    }
+    catch (e) {
+      console.error(`An error has occurred while removing the temp folder at ${tmpDir}. Please remove it manually. Error: ${e}`);
+    }
+  }
 }
+
+
 const idToUrl = (id) => {
   console.log(id);
   if(!id) return;
@@ -193,17 +308,101 @@ const getPageScreenshot = (url) => puppeteer
     })
 ;
 
+
+const getVideoScreenshot = async(url) => {
+  console.log(`getvideoscreenshot url = ${url}`)
+  const browser = await puppeteer
+    .launch({
+      // defaultViewport: {
+      //   width: 500,
+      //   height: 600,
+      // },
+      // args : [
+      //   '--no-sandbox',
+      //   '--disable-setuid-sandbox'
+      // ],
+      headless: true
+    })
+  const page = await browser.newPage();
+  const pageHtml = `
+  <html>
+    <head>
+      <meta name="viewport" content="width=device-width">
+      <link rel="stylesheet"
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&amp;display=swap">
+  </head>
+  <body>
+  <video autoplay="" name="media" autoPlay
+         src=${url}
+         type="video/mp4"></video>
+  </body>
+  </html>
+  `
+  // const pageHtml = `
+  //   <html lang="en">
+  //     <body>
+  //       <video id="vid" autoplay preload="auto">
+  //         <source src=${url} type="video/mp4" >
+  //       </video>
+  //     </body>
+  //   </html>`
+  await page.setContent(pageHtml, {waitUntil: 'networkidle0'});
+  const content = await page.$("body");
+  const imageBuffer = await content.screenshot({ omitBackground: false });
+  await page.close();
+  await browser.close();
+  return imageBuffer;
+}
+
+
 const appCache = new nodecache({ stdTTL : 3599});
 
-var app = express(queue({ activeLimit: 2, queuedLimit: -1 }));
+// var app = express(queue({ activeLimit: 2, queuedLimit: -1 }));
+const app = express();
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }));
 
-app.get('/', async(req,res) => {
-  return res.send("Enter a /txId to get the base64 thumbnail...")
-})
+
 app.get('/favicon.ico', async(req,res) => {
   return res.send("404")
+})
+
+app.get('/test', async(req,res) => {
+  // fs.readFile('ar-minimizer-cacheVilx7t/thumbnail.png', function(err, data) {
+  //   if (err) throw err // Fail if the file can't be read.
+  //   res.writeHead(200, {'Content-Type': 'image/jpeg'})
+  //   res.end(data) // Send the file data to the browser.
+  // })
+  let url = idToUrl(req.query?.url)
+  if (!fs.existsSync("tmp")) {
+    fs.mkdirSync("tmp");
+  }
+
+  let browser = null;
+
+  try {
+    // launch headless Chromium browser
+    browser = await puppeteer.launch({ headless: true });
+
+    // create new page object
+    const page = await browser.newPage();
+    // set viewport width and height
+    await page.setViewport({ width: 1440, height: 1080 });
+    await page.goto(url);
+
+    // capture screenshot and store it into screenshots directory.
+    await page.screenshot({ path: `tmp/github-profile.jpeg` });
+    fs.readFile('tmp/github-profile.jpeg', function(err, data) {
+      if (err) throw err // Fail if the file can't be read.
+      res.writeHead(200, {'Content-Type': 'image/jpeg'})
+      res.end(data) // Send the file data to the browser.
+    })
+  } catch (err) {
+    console.log(`❌ Error: ${err.message}`);
+  } finally {
+    await browser.close();
+    console.log(`\n🎉 GitHub profile screenshots captured.`);
+  }
 })
   
 
@@ -299,13 +498,11 @@ app.get('/image', cors(), async(req,res) => {
 // VIDEO
 //////////////////////////////////////////////////
 
-// app.get('/video/:id', async(req,res) => {
-  // let url = idToUrl(req.params?.id);
 app.get('/video', async(req,res) => {
   let url = idToUrl(req.query?.url);
   url = url.replace("https", "http");
   console.log(url);
-  if (appCache.has(url)) {
+  if (false && appCache.has(url)) {
     console.log('Get data from Node Cache');
     const data = await appCache.get(url);
     return res.json({image: data});
@@ -314,12 +511,12 @@ app.get('/video', async(req,res) => {
     const contentType = await getContentType(url);
     const mimeType = contentType.split("/")?.slice(0, 1)[0];
     if(mimeType !== "video") return res.json({image: null, error: "source is not a video"})
-
-    const data = imgFromVideoUrl(url);
-    if(data) {
-      appCache.set(url, data);
-    }
-    return res.json({image: null, error: e})
+    await grabThumb(url)
+    fs.readFile('result.gif', function(err, data) {
+      if (err) throw err // Fail if the file can't be read.
+      res.writeHead(200, {'Content-Type': 'image/gif'})
+      res.end(data) // Send the file data to the browser.
+    })
   }
 })
 
@@ -404,6 +601,9 @@ app.get('/:id', async(req,res) => {
   }
 })
 
+app.get('/', async(req,res) => {
+  return res.send("Enter a /txId to get the base64 thumbnail...")
+})
 
 app.listen(process.env.PORT || 5000, () => {
   console.log(`Server running on port ${process.env.PORT || 5000}`);
