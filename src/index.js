@@ -546,12 +546,15 @@ app.get('/video', async(req,res) => {
       const fileExists = await waitForFile(filename);
       console.log(output);
       // if(!output) return;
-      await fs.readFile(String(filename), function(err, data) {
-        if (err) throw err // Fail if the file can't be read.
+      // await fs.readFile(String(filename), function(err, data) {
+      //   if (err) throw err // Fail if the file can't be read.
         // res.writeHead(200, {'Content-Type': 'image/gif'})
         // res.end(data) // Send the file data to the browser.
         res.send(`data:image/gif;base64,${data.toString('base64')}`)
-      })
+      // })
+      const bitmap = fs.readFileSync(String(filename));
+      return `data:image/gif;base64,${new Buffer(bitmap).toString('base64')}`;
+
     }
     catch (e) {
       console.log(e)
