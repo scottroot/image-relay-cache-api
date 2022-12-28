@@ -1,4 +1,5 @@
 import fs from "fs";
+import FS from "fs/promises";
 import os from "os";
 import http from "http";
 import path from "path";
@@ -550,10 +551,10 @@ app.get('/video', async(req,res) => {
       //   if (err) throw err // Fail if the file can't be read.
         // res.writeHead(200, {'Content-Type': 'image/gif'})
         // res.end(data) // Send the file data to the browser.
-        res.send(`data:image/gif;base64,${data.toString('base64')}`)
+        // res.send(`data:image/gif;base64,${data.toString('base64')}`)
       // })
-      const bitmap = await fs.readFileSync(filename, { encoding: 'base64' });
-      return `data:image/gif;base64,${bitmap}`;
+      const bitmap = await FS.readFile(filename, { encoding: 'base64' });
+      return res.send(`data:image/gif;base64,${bitmap}`);
 
     }
     catch (e) {
