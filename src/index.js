@@ -100,6 +100,53 @@ const imgFromImagePath = async(source, w, h, q) => {
   }
 }
 
+
+const imgFromVideoUrl = async(source, w, h, q) => {
+  try {
+    let tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), appPrefix));
+    // let cwd = process.cwd();
+    // console.log(String(tmpDir));
+    var outStream = await fs.createWriteStream('video.mp4');
+    // let stream = await axios.get(url, { responseType: 'stream' });
+    await ffmpeg({source: url.replace("https", "http")}) // got.stream(url))
+      .setFfmpegPath(ffmpeg_static)
+      .format('mjpeg')
+      .frames(1)
+      .size('320x320')
+      .on('start', function(commandLine) {
+        console.log('COMMANDLINE =  ' + commandLine);
+      })
+      .on('error', function (err) {
+        console.log('An error occurred: ' + err);
+      })
+      .on('end', function () {
+        console.log('Processing finished !');
+      })
+      .takeScreenshots({
+        count: 2,
+        timemarks: ['1'],
+        filename: `thumbnail`,
+        // qscale: 7,
+      }, tmpDir) //path.join(cwd, 'tmp'))//String(tmpDir))
+      .pipe(outStream, {end: true});
+    const data = await imgFromImagePath(path.join(tmpDir, "thumbnail.png"), w, h, q); //(cwd, 'tmp', "thumbnail.png"));//path.join(tmpDir, "thumbnail"));
+    return data
+  }
+  catch (e) {  // handle error
+    console.log(e)
+    return null
+  }
+  finally {
+    try {
+      if (tmpDir) {
+        fs.rmSync(tmpDir, { recursive: true });
+      }
+    }
+    catch (e) {
+      console.error(`An error has occurred while removing the temp folder at ${tmpDir}. Please remove it manually. Error: ${e}`);
+    }
+  }
+}
 const idToUrl = (id) => {
   console.log(id);
   if(!id) return;
@@ -259,7 +306,7 @@ app.get('/video', async(req,res) => {
   let url = idToUrl(req.query?.url);
   url = url.replace("https", "http");
   console.log(url);
-  if (false && appCache.has(url)) {
+  if (appCache.has(url)) {
     console.log('Get data from Node Cache');
     const data = await appCache.get(url);
     return res.json({image: data});
@@ -269,53 +316,11 @@ app.get('/video', async(req,res) => {
     const mimeType = contentType.split("/")?.slice(0, 1)[0];
     if(mimeType !== "video") return res.json({image: null, error: "source is not a video"})
 
-    try {
-      let tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), appPrefix));
-      let cwd = process.cwd();
-      // console.log(String(tmpDir));
-      var outStream = await fs.createWriteStream('video.mp4');
-      // let stream = await axios.get(url, { responseType: 'stream' });
-      await ffmpeg({source: url}) // got.stream(url))
-        .setFfmpegPath(ffmpeg_static)
-        .format('mjpeg')
-        .frames(1)
-        .size('320x320')
-        .on('start', function(commandLine) {
-          console.log('COMMANDLINE =  ' + commandLine);
-        })
-        .on('error', function (err) {
-          console.log('An error occurred: ' + err);
-        })
-        .on('end', function () {
-          console.log('Processing finished !');
-        })
-        .takeScreenshots({
-          count: 2,
-          timemarks: ['1'],
-          filename: `thumbnail`,
-          // qscale: 7,
-        }, path.join(cwd, 'tmp'))//String(tmpDir))
-        .pipe(outStream, {end: true});
-      const data = await imgFromImagePath(path.join(cwd, 'tmp', "thumbnail.png"));//path.join(tmpDir, "thumbnail"));
-      if(data) {
-        appCache.set(url, data);
-      }
-      return res.json({image: data});
+    const data = imgFromVideoUrl(url);
+    if(data) {
+      appCache.set(url, data);
     }
-    catch (e) {  // handle error
-      console.log(e)
-      return res.json({image: null, error: e})
-    }
-    finally {
-      try {
-        if (tmpDir) {
-          fs.rmSync(tmpDir, { recursive: true });
-        }
-      }
-      catch (e) {
-        console.error(`An error has occurred while removing the temp folder at ${tmpDir}. Please remove it manually. Error: ${e}`);
-      }
-    }
+    return res.json({image: null, error: e})
   }
 })
 
