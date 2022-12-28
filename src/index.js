@@ -155,17 +155,38 @@ const imgFromImagePath = async(source, w, h, q) => {
 
 
 
-const grabThumb = async (url) => {
-  var client = new grabzit("NjBlN2Q5MzI2YTUwNDY1ZjgwYTdkYzc1YTk4Nzg1ZWQ=", "Pz8/P2d3P2c/Pz9TBj8/SAENJD8/Pz8gPz9KeE5zP3I=");
-  var options = {"start":1, "duration":1, "framesPerSecond":1};
-  client.url_to_animation(url, options);
-  //Then call the save or save_to method
-  client.save_to("result.gif", function (error, id){
-      //this callback is called once the capture is downloaded
-      if (error != null){
-          throw error;
-      }
-  });
+const grabThumb = async (url, filename) => {
+  // return new Promise(async(resolve, reject) => {
+  //   var client = await new grabzit("NjBlN2Q5MzI2YTUwNDY1ZjgwYTdkYzc1YTk4Nzg1ZWQ=", "Pz8/P2d3P2c/Pz9TBj8/SAENJD8/Pz8gPz9KeE5zP3I=");
+  //   var options = {"start":2, "duration":1, "framesPerSecond":1};
+  //   await client.url_to_animation(url, options);
+  //   //Then call the save or save_to method
+  //   var randName = String(process.cwd())
+  //     + url
+  //     .replace("https://", "")
+  //     .replace("http://", "")
+  //     .replace("arweave.net/", "")
+  //     .replace("/", "")
+  //     .replace("=", "")
+  //     .slice(0, 5)
+  //     + ".gif";
+  //   await client.save_to(`${randName}`, function (error, id){
+  //       //this callback is called once the capture is downloaded
+  //     return (randName)
+  //       if (error != null){
+  //           return(error)
+  //       }
+  //   });
+  console.log(`url = ${url.replace("http://", "https://")}, filename = ${filename}`)
+  const grabber = await new grabzit("NjBlN2Q5MzI2YTUwNDY1ZjgwYTdkYzc1YTk4Nzg1ZWQ=", "Pz8/P2d3P2c/Pz9TBj8/SAENJD8/Pz8gPz9KeE5zP3I=");
+  await grabber.url_to_animation(url.replace("http://", "https://"), {"start":0, "duration":1, "framesPerSecond":1})
+  await grabber.save_to(filename,  (error, id) => {
+    if(error !== null) {
+      console.log(error);
+      return error
+    }
+    return filename
+  })
 }
 
 
@@ -511,12 +532,31 @@ app.get('/video', async(req,res) => {
     const contentType = await getContentType(url);
     const mimeType = contentType.split("/")?.slice(0, 1)[0];
     if(mimeType !== "video") return res.json({image: null, error: "source is not a video"})
-    await grabThumb(url)
-    fs.readFile('result.gif', function(err, data) {
-      if (err) throw err // Fail if the file can't be read.
-      res.writeHead(200, {'Content-Type': 'image/gif'})
-      res.end(data) // Send the file data to the browser.
-    })
+    try {
+      const filename = "" // String(process.cwd())
+        + url
+        .replace("https://", "")
+        .replace("http://", "")
+        .replace("arweave.net/", "")
+        .replace("/", "")
+        .replace("=", "")
+        .slice(0, 5)
+        + ".gif"
+      const output = await grabThumb(url, filename);
+      const fileExists = await waitForFile(filename);
+      console.log(output);
+      // if(!output) return;
+      await fs.readFile(String(filename), function(err, data) {
+        if (err) throw err // Fail if the file can't be read.
+        res.writeHead(200, {'Content-Type': 'image/gif'})
+        res.end(data) // Send the file data to the browser.
+      })
+    }
+    catch (e) {
+      console.log(e)
+      res.end("none")
+    }
+
   }
 })
 
