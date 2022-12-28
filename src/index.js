@@ -257,6 +257,7 @@ app.get('/image', cors(), async(req,res) => {
   // let url = idToUrl(req.params?.id);
 app.get('/video', async(req,res) => {
   let url = idToUrl(req.query?.url);
+  url = url.replace("https", "http");
   console.log(url);
   if (false && appCache.has(url)) {
     console.log('Get data from Node Cache');
@@ -269,17 +270,19 @@ app.get('/video', async(req,res) => {
     if(mimeType !== "video") return res.json({image: null, error: "source is not a video"})
 
     try {
-      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), appPrefix));
-      console.log(String(tmpDir));
+      let tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), appPrefix));
+      let cwd = process.cwd();
+      // console.log(String(tmpDir));
       var outStream = await fs.createWriteStream('video.mp4');
-      await ffmpeg(url) // got.stream(url))
+      // let stream = await axios.get(url, { responseType: 'stream' });
+      await ffmpeg({source: url}) // got.stream(url))
         .setFfmpegPath(ffmpeg_static)
         .format('mjpeg')
         .frames(1)
         .size('320x320')
-        // .on('start', function(commandLine) {
-        //   console.log('COMMANDLINE =  ' + commandLine);
-        // })
+        .on('start', function(commandLine) {
+          console.log('COMMANDLINE =  ' + commandLine);
+        })
         .on('error', function (err) {
           console.log('An error occurred: ' + err);
         })
@@ -287,21 +290,21 @@ app.get('/video', async(req,res) => {
           console.log('Processing finished !');
         })
         .takeScreenshots({
-          count: 1,
-          timemarks: ['0'],
+          count: 2,
+          timemarks: ['1'],
           filename: `thumbnail`,
           // qscale: 7,
-        }, String(tmpDir))
+        }, path.join(cwd, 'tmp'))//String(tmpDir))
         .pipe(outStream, {end: true});
-      const data = imgFromImagePath(path.join(tmpDir, "thumbnail"));
+      const data = await imgFromImagePath(path.join(cwd, 'tmp', "thumbnail.png"));//path.join(tmpDir, "thumbnail"));
       if(data) {
         appCache.set(url, data);
       }
       return res.json({image: data});
     }
     catch (e) {  // handle error
-      console.log(err)
-      return res.json({image: null, error: err})
+      console.log(e)
+      return res.json({image: null, error: e})
     }
     finally {
       try {
