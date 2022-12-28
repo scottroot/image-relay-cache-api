@@ -552,8 +552,8 @@ app.get('/video', async(req,res) => {
         // res.end(data) // Send the file data to the browser.
         res.send(`data:image/gif;base64,${data.toString('base64')}`)
       // })
-      const bitmap = fs.readFileSync(String(filename));
-      return `data:image/gif;base64,${new Buffer(bitmap).toString('base64')}`;
+      const bitmap = fs.readFileSync(filename, { encoding: 'base64' });
+      return `data:image/gif;base64,${bitmap}`;
 
     }
     catch (e) {
