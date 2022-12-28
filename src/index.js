@@ -101,7 +101,7 @@ const imgFromImagePath = async(source, w, h, q) => {
 }
 
 
-const imgFromVideoUrl = async(source, w, h, q) => {
+const imgFromVideoUrl = async(url, w, h, q) => {
   try {
     let tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), appPrefix));
     // let cwd = process.cwd();
@@ -129,8 +129,7 @@ const imgFromVideoUrl = async(source, w, h, q) => {
         // qscale: 7,
       }, tmpDir) //path.join(cwd, 'tmp'))//String(tmpDir))
       .pipe(outStream, {end: true});
-    const data = await imgFromImagePath(path.join(tmpDir, "thumbnail.png"), w, h, q); //(cwd, 'tmp', "thumbnail.png"));//path.join(tmpDir, "thumbnail"));
-    return data
+    return await imgFromImagePath(path.join(tmpDir, "thumbnail.png"), w, h, q); //(cwd, 'tmp', "thumbnail.png"));//path.join(tmpDir, "thumbnail"));
   }
   catch (e) {  // handle error
     console.log(e)
