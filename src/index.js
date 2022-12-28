@@ -69,7 +69,7 @@ const imgFromImageUrl = async(url, w, h, q) => {
     return image64
   }
   catch (e) {
-    console.log(`image compression failed with error: ${e.message}`)
+    console.log(`image compression failed with error: ${e}`)
   }
 }
 
@@ -96,14 +96,14 @@ const imgFromImagePath = async(source, w, h, q) => {
     return image64
   }
   catch (e) {
-    console.log(`image compression failed with error: ${e.message}`)
+    console.log(`image compression failed with error: ${e?.message}`)
   }
 }
 
 
 const imgFromVideoUrl = async(url, w, h, q) => {
   try {
-    let tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), appPrefix));
+    // let tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), appPrefix));
     // let cwd = process.cwd();
     // console.log(String(tmpDir));
     var outStream = await fs.createWriteStream('video.mp4');
@@ -127,24 +127,24 @@ const imgFromVideoUrl = async(url, w, h, q) => {
         timemarks: ['1'],
         filename: `thumbnail`,
         // qscale: 7,
-      }, tmpDir) //path.join(cwd, 'tmp'))//String(tmpDir))
+      }, 'tmp') //path.join(cwd, 'tmp'))//String(tmpDir))
       .pipe(outStream, {end: true});
-    return await imgFromImagePath(path.join(tmpDir, "thumbnail.png"), w, h, q); //(cwd, 'tmp', "thumbnail.png"));//path.join(tmpDir, "thumbnail"));
+    return await imgFromImagePath(path.join('tmp', "thumbnail.png"), w, h, q); //(cwd, 'tmp', "thumbnail.png"));//path.join(tmpDir, "thumbnail"));
   }
   catch (e) {  // handle error
     console.log(e)
     return null
   }
-  finally {
-    try {
-      if (tmpDir) {
-        fs.rmSync(tmpDir, { recursive: true });
-      }
-    }
-    catch (e) {
-      console.error(`An error has occurred while removing the temp folder at ${tmpDir}. Please remove it manually. Error: ${e}`);
-    }
-  }
+  // finally {
+  //   try {
+  //     if (tmpDir) {
+  //       fs.rmSync(tmpDir, { recursive: true });
+  //     }
+  //   }
+  //   catch (e) {
+  //     console.error(`An error has occurred while removing the temp folder at ${tmpDir}. Please remove it manually. Error: ${e}`);
+  //   }
+  // }
 }
 const idToUrl = (id) => {
   console.log(id);
