@@ -1,4 +1,6 @@
 import fs from "fs";
+import os from "os";
+import path from "path";
 // import { fileTypeFromStream } from 'file-type';
 import imageThumbnail from 'image-thumbnail';
 import express from "express";
@@ -10,7 +12,8 @@ import puppeteer from "puppeteer";
 import queue from "express-queue";
 import cors from "cors";
 import got from "got"
-
+import sharp from "sharp";
+import sizeOf from "image-size";
 
 // options:
 // percentage [0-100] - image thumbnail percentage. Default = 10
@@ -21,6 +24,102 @@ import got from "got"
 // fit [string] - method by which the image should fit the width/height. Default = contain (details)
 // failOnError [boolean] - Set to false to avoid read problems for images from some phones (i.e Samsung) in the sharp lib. Default = true (details)
 // withMetaData [boolean] - Keep metadata in the thumbnail (will increase file size)
+
+let tmpDir;
+const appPrefix = 'ar-minimizer-cache';
+// try {
+//   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), appPrefix));
+//   // the rest of your app goes here
+// }
+// catch (e) {  // handle error
+//   console.log(err)
+// }
+// finally {
+//   try {
+//     if (tmpDir) {
+//       fs.rmSync(tmpDir, { recursive: true });
+//     }
+//   }
+//   catch (e) {
+//     console.error(`An error has occurred while removing the temp folder at ${tmpDir}. Please remove it manually. Error: ${e}`);
+//   }
+// }
+
+const imgFromImageUrl = async(url, w, h, q) => {
+  try {
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const imageBuffer = Buffer.from(response.data, 'binary');
+    const width = w || 50;
+    const height = h || 50;
+    const quality = q || 25;
+    const dimensions = getDimensions(imageBuffer, 10, { width, height });
+    let jpegOptions
+    if(width && height) {
+        jpegOptions = {width: Number(width), height: Number(height), quality: quality} // percentage: 50, 
+      }
+      else {
+        jpegOptions = {quality: quality} // percentage: 50, 
+      }
+    const fit = "cover"
+    const failOnError = true;
+    const withMetaData = true;
+    const thumbnailBuffer = await sharpResize(imageBuffer, dimensions, jpegOptions, fit, failOnError, withMetaData);
+    const image64 = thumbnailBuffer.toString('base64');
+
+    return image64
+  }
+  catch (e) {
+    console.log(`image compression failed with error: ${e.message}`)
+  }
+}
+
+const imgFromImagePath = async(source, w, h, q) => {
+  try {
+    const imageBuffer = fs.readFileSync(source);
+    const width = w || 50;
+    const height = h || 50;
+    const quality = q || 25;
+    const dimensions = getDimensions(imageBuffer, 10, { width, height });
+    let jpegOptions
+    if(width && height) {
+        jpegOptions = {width: Number(width), height: Number(height), quality: quality} // percentage: 50, 
+      }
+      else {
+        jpegOptions = {quality: quality} // percentage: 50, 
+      }
+    const fit = "cover"
+    const failOnError = true;
+    const withMetaData = true;
+    const thumbnailBuffer = await sharpResize(imageBuffer, dimensions, jpegOptions, fit, failOnError, withMetaData);
+    const image64 = thumbnailBuffer.toString('base64');
+
+    return image64
+  }
+  catch (e) {
+    console.log(`image compression failed with error: ${e.message}`)
+  }
+}
+
+const idToUrl = (id) => {
+  console.log(id);
+  if(!id) return;
+  let url = id;
+  if (id.length === 43 && !url.startsWith("http")) {
+    url = `https://arweave.net/${id}`
+  }
+  if (id.startsWith("ar://")) {
+    url = id.replace("ar://", "https://arweave.net/")
+  }
+  if (id.startsWith("ipfs://")) {
+    url = id.replace("ipfs://", "https://ipfs.io/ipfs/")
+  }
+  if (!url.startsWith("http")) {
+    url = `https://${url}`
+  }
+
+  return url
+}
+
 
 const getContentType = (url) => (
   axios.get(url)
@@ -85,46 +184,145 @@ app.get('/page', cors(), async(req, res) => {
 })
 
 
-// app.get('/image/:id', async(req,res) => {
+
+const getDimensions = (imageBuffer, percentageOfImage, dimensions) => {
+    if (typeof dimensions.width != 'undefined' || typeof dimensions.height != 'undefined') {
+        return removeUndefined(dimensions);
+    }
+
+    const originalDimensions = sizeOf(imageBuffer);
+
+    const width = parseInt((originalDimensions.width * (percentageOfImage / 100)).toFixed(0));
+    const height = parseInt((originalDimensions.height * (percentageOfImage / 100)).toFixed(0));
+
+    return { width, height };
+}
+
+const removeUndefined = (dimensions) => {
+    Object.keys(dimensions).forEach(key => dimensions[key] === undefined && delete dimensions[key]);
+    return dimensions
+}
+
+const sharpResize = (imageBuffer, dimensions, jpegOptions, fit, failOnError, withMetadata) => {
+    return new Promise((resolve, reject) => {
+        let result = sharp(imageBuffer, { failOnError })
+            .resize({
+                ...dimensions, withoutEnlargement: true, fit: fit ? fit : 'contain',
+            })
+
+            if(withMetadata){
+              result.withMetadata()
+            }
+
+            result.jpeg(jpegOptions ? jpegOptions : { force: false })
+            .toBuffer((err, data) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(data);
+                }
+            });
+    });
+};
+
 app.get('/image', cors(), async(req,res) => {
-  try { 
-  // const id = req.params.id;
-  // console.log(`api tx param = ${id}`);
-      let url = req.query?.url;
-      const width = req.query?.width || 320;
-      const height = req.query?.height || 320;
-      if (appCache.has(`${url}`)) {
-        console.log('Get data from Node Cache');
-        const data = appCache.get(`${url}`);
-        return res.json(data);
-      } else {
-        if (url.length === 43) {
-          url = `https://arweave.net/${url}`; 
-        } 
-        if (!url.startsWith("http")) {
-          url = `https://${url}`;
-        }
-        let options;
-        if(width && height) {
-          options = {responseType: 'base64', fit: 'cover', withMetaData: true, width: Number(width), height: Number(height)}
-        }
-        else {
-          options = {responseType: 'base64', fit: 'cover', withMetaData: true, percentage: 50}
-        }
-         
-        const thumbnail = await imageThumbnail({uri: url}, options);
-        // const img64 = thumbnail.toString('base64');
-        const data = `data:image/png;base64,${thumbnail}`;
-        appCache.set(`${url}`, data);
-        return res.json(data);
-      }  
-  } catch (err) {
-    return res.json({image: null, error: err})
+  let url = idToUrl(req.query?.url);
+  if (appCache.has(url)) {
+    console.log('Get data from Node Cache');
+    const data = appCache.get(url);
+    return res.json(data);
+  } else {
+    try { 
+      const data = await imgFromImageUrl(url, req.query?.width, req.query?.height, req.query?.quality)
+
+      appCache.set(`${req.query}`, data);
+      return res.send(data);
+
+    } catch (err) {
+      console.log(err)
+      return res.json({image: null, error: err})
+    }
   }
-})  
+}) 
+
+
+
+
+
+//////////////////////////////////////////////////
+// VIDEO
+//////////////////////////////////////////////////
+
+// app.get('/video/:id', async(req,res) => {
+  // let url = idToUrl(req.params?.id);
+app.get('/video', async(req,res) => {
+  let url = idToUrl(req.query?.url);
+  console.log(url);
+  if (false && appCache.has(url)) {
+    console.log('Get data from Node Cache');
+    const data = await appCache.get(url);
+    return res.json({image: data});
+  } 
+  else {
+    const contentType = await getContentType(url);
+    const mimeType = contentType.split("/")?.slice(0, 1)[0];
+    if(mimeType !== "video") return res.json({image: null, error: "source is not a video"})
+
+    try {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), appPrefix));
+      console.log(String(tmpDir));
+      var outStream = await fs.createWriteStream('video.mp4');
+      await ffmpeg(url) // got.stream(url))
+        .setFfmpegPath(ffmpeg_static)
+        .format('mjpeg')
+        .frames(1)
+        .size('320x320')
+        // .on('start', function(commandLine) {
+        //   console.log('COMMANDLINE =  ' + commandLine);
+        // })
+        .on('error', function (err) {
+          console.log('An error occurred: ' + err);
+        })
+        .on('end', function () {
+          console.log('Processing finished !');
+        })
+        .takeScreenshots({
+          count: 1,
+          timemarks: ['0'],
+          filename: `thumbnail`,
+          // qscale: 7,
+        }, String(tmpDir))
+        .pipe(outStream, {end: true});
+      const data = imgFromImagePath(path.join(tmpDir, "thumbnail"));
+      if(data) {
+        appCache.set(url, data);
+      }
+      return res.json({image: data});
+    }
+    catch (e) {  // handle error
+      console.log(err)
+      return res.json({image: null, error: err})
+    }
+    finally {
+      try {
+        if (tmpDir) {
+          fs.rmSync(tmpDir, { recursive: true });
+        }
+      }
+      catch (e) {
+        console.error(`An error has occurred while removing the temp folder at ${tmpDir}. Please remove it manually. Error: ${e}`);
+      }
+    }
+  }
+})
+
+app.get('/stats',(req,res)=>{
+  res.send(appCache.getStats());
+})
 
 
 app.get('/:id', async(req,res) => {
+  let url = idToUrl(req.params?.id);
   try {
     const id = req.params.id;
     // if(!id || id.length !== 43) return res.send("incorrect id format");
@@ -199,97 +397,6 @@ app.get('/:id', async(req,res) => {
   }
 })
 
-
-app.get('/video/:id', async(req,res) => {
-  const curr_working_dir = process.cwd();
-  // console.log(curr_working_dir);
-  const id = req.params.id;
-  // console.log(id);
-
-  if (appCache.has(`${id}`)) {
-    console.log('Get data from Node Cache');
-    const data = await appCache.get(`${id}`);
-    return res.json({image: data});
-  } 
-  else {
-    // try { 
-    let url = id;
-    if (id.length === 43) url = `https://arweave.net/${id}.mp4`
-    if (!url.startsWith("http")) url = `https://${url}`
-    console.log(`url = ${url}`);
-    // const contentType = await getContentType(url);
-    // const mimeType = contentType.split("/")?.slice(0, 1)[0];
-    // console.log(`1.  mimeType = ${mimeType}`);
-
-    let rname = (Math.random() + 1).toString(36).substring(7);
-    // let file_name = String(id).replace("/", "").replace("\\", "").replace("=", "").replace("_", "").replace("-", "")
-    // console.log(`2.  file name = ${file_name}`)
-    // try {
-      // if (mimeType === "video" || contentType === "image/gif") {
-    var outStream = await fs.createWriteStream('video.mp4');
-    await ffmpeg(url)
-      .setFfmpegPath(ffmpeg_static)
-      .format('mjpeg')
-      .frames(1)
-      .size('320x320')
-      // .on('start', function(commandLine) {
-      //   console.log('COMMANDLINE =  ' + commandLine);
-      // })
-      .on('error', function (err) {
-        console.log('An error occurred: ' + err);
-        console.log(`url = ${url}`)
-      })
-      .on('end', function () {
-        console.log('Processing finished !');
-      })
-      .takeScreenshots({
-        count: 5,
-        timemarks: ['0'],
-        filename: `thumbnail-${rname}.png`,
-        // qscale: 7,
-      }, 'tmp')
-      // .pipe(outStream, {ned: true});
-    // } catch (err) {
-    //   console.log(`await ffmpeg error = ${err}`)
-    //   return res.send("none")
-    // }
-    return res.send()
-    // try {
-    //   var bitmap = await fs.readFileSync(`${curr_working_dir}/tmp/${file_name}.png`);
-    // } catch (err) {
-    //   console.log(`var bitmap failed with err = ${err.message}`)
-    // }
-    
-    // var img64 = await new Buffer.from(bitmap, "binary").toString('base64');
-    // const data = `data:image/png;base64,${img64}`;
-    // console.log(data);
-    // appCache.set(`${id}`, data);
-    // // return res.json({image: data});
-    // return res.send(data);
-
-      // try {
-      //   console.log(fs.readdirSync('./tmp'));
-      //   var bitmap = await fs.readFileSync(`${file_name}.png`);
-      //   var img64 = await new Buffer.from(bitmap, "binary").toString('base64');
-      //   const data = `data:image/png;base64,${img64}`;
-      //   appCache.set(`${id}`, data);
-      //   // return res.json({image: data});
-      //   return res.send(data);
-      //   // }
-      // }
-      // catch (err) {
-      //   console.log(err)
-      // }
-      // return res.json({image: null});
-    // } catch (err) {
-    //   return res.json({image: null, error: err})
-    // }
-  }
-})
-
-// app.get('/stats',(req,res)=>{
-//   res.send(appCache.getStats());
-// })
 
 app.listen(process.env.PORT || 5000, () => {
   console.log(`Server running on port ${process.env.PORT || 5000}`);
